@@ -1,0 +1,8 @@
+LICENSE
+README.md
+setup.py
+Downloader.egg-info/PKG-INFO
+Downloader.egg-info/SOURCES.txt
+Downloader.egg-info/dependency_links.txt
+Downloader.egg-info/requires.txt
+Downloader.egg-info/top_level.txt
