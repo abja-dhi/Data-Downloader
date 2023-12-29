@@ -9,6 +9,6 @@ setup(
         "mikeio",
         "pandas",
         "netCDF4",
-        "requests",
+        "requests"
     ],
 )

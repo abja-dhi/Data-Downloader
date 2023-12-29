@@ -1,12 +1,9 @@
 README.md
-pyproject.toml
 setup.cfg
 setup.py
-Downloader.egg-info/PKG-INFO
-Downloader.egg-info/SOURCES.txt
-Downloader.egg-info/dependency_links.txt
-Downloader.egg-info/requires.txt
-Downloader.egg-info/top_level.txt
+downloader/HYCOM.py
+downloader/__init__.py
+downloader/utils.py
 downloader.egg-info/PKG-INFO
 downloader.egg-info/SOURCES.txt
 downloader.egg-info/dependency_links.txt
