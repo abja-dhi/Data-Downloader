@@ -415,3 +415,29 @@ class HYCOM:
         if "salinity" in self.variables:
             itemInfos["salinity"] = [ItemInfo("Salinity at " + str(d) + "m", EUMType.Salinity, EUMUnit.PSU) for d in depths]
         return itemInfos
+    
+    def dfs22dfs0(self, point):
+        if len(self.location) == 2:
+            raise SyntaxError("dfs22dfs0 is only available for the cases with bounding box!")
+            return
+        utils.mkch(self.currd)
+        for var in self.variables:
+            try:
+                os.chdir(var)
+                os.chdir(self.currd)
+            except:
+                raise SyntaxError("You should call to_dfs function first before being able to extract point data")
+                return
+        os.chdir(self.currd)
+        if isinstance(point, list):
+            point = Point(lon=point[0], lat=point[1])
+        for var in self.variables:
+            os.chdir(var)
+            for year in range(self.start_date.year, self.end_date.year+1):
+                tmp = mikeio.read(str(year) + ".dfs2").interp(x=point.lon, y=point.lat)
+                try:
+                    df = mikeio.Dataset.concat([df, tmp])
+                except:
+                    df = tmp
+            df.to_dfs(var+"_"+str(point)+".dfs0")
+            del df
