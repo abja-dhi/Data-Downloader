@@ -8,7 +8,8 @@ import mikeio
 import requests
 import time
 from mikecore.DfsFile import eumUnit, eumItem
-from mikeio.eum import EUMType, ItemInfo
+#from mikeio.eum import EUMType, ItemInfo
+from mikeio import ItemInfo, EUMType, EUMUnit
 
 class HYCOM:
     def __init__(self, params) -> None:
@@ -195,7 +196,7 @@ class HYCOM:
                 year = date.year
                 print("Data for {year} is loading!".format(year=str(year)))
             utils.mkch(self.currd) 
-        depths = self._read_depth()
+        depths = self._read_depth_point()
         dfs = self._create_dfs_point(data, depths)
         itemInfos = self._create_ItemInfo_point(depths)
         utils.mkch(self.currd)
@@ -233,7 +234,7 @@ class HYCOM:
             utils.mkch(self.currd) 
             return loaded_data
         
-    def _read_depth(self):
+    def _read_depth_point(self):
         depths = None
         i = 0
         utils.mkch(self.currd)
@@ -245,6 +246,7 @@ class HYCOM:
             try:
                 ds = nc.Dataset(fname)
                 depths = ds["depth"][0, 0, :].data
+                break
             except:
                 i = i + 1
         utils.mkch(self.currd)
@@ -267,13 +269,149 @@ class HYCOM:
     def _create_ItemInfo_point(self, depths):
         itemInfos = {}
         if "surf_el" in self.variables:
-            itemInfos["surf_el"] = [ItemInfo("Water Level", EUMType.Water_Level, eumUnit.eumUmeter)]
+            itemInfos["surf_el"] = [ItemInfo("Water Level", EUMType.Water_Level, EUMUnit.meter)]
         if "water_u" in self.variables:
-            itemInfos["water_u"] = [ItemInfo("Current U "+str(d)+"m", EUMType.Current_Speed, eumUnit.eumUmeterPerSec) for d in depths]
+            itemInfos["water_u"] = [ItemInfo("Current U "+str(d)+"m", EUMType.u_velocity_component, EUMUnit.meter_per_sec) for d in depths]
         if "water_v" in self.variables:
-            itemInfos["water_v"] = [ItemInfo("Current V "+str(d)+"m", EUMType.Current_Speed, eumUnit.eumUmeterPerSec) for d in depths]
+            itemInfos["water_v"] = [ItemInfo("Current V "+str(d)+"m", EUMType.v_velocity_component, EUMUnit.meter_per_sec) for d in depths]
         if "water_temp" in self.variables:
-            itemInfos["water_temp"] = [ItemInfo("Water Temp  "+str(d)+"m", EUMType.Temperature, eumUnit.eumUdegreeCelsius) for d in depths]
+            itemInfos["water_temp"] = [ItemInfo("Water Temp  "+str(d)+"m", EUMType.Temperature, EUMUnit.degree_Celsius) for d in depths]
         if "salinity" in self.variables:
-            itemInfos["salinity"] = [ItemInfo("Current V "+str(d)+"m", EUMType.Salinity, eumUnit.eumUPSU) for d in depths]
+            itemInfos["salinity"] = [ItemInfo("Salinity "+str(d)+"m", EUMType.Salinity, EUMUnit.PSU) for d in depths]
+        return itemInfos
+    
+    def _to_dfs2(self):
+        utils.mkch(self.currd)
+        utils.create_log(path=self.currd, reset=True, log_name="corrupted files.txt")
+
+        
+        for date in self.dates:
+            utils.mkch(" - ".join(self.variables))
+            utils.mkch(str(date.year))
+            utils.mkch(str(date.month))
+            fname = date.strftime("%Y%m%dT%H.nc")
+            lon, lat, loaded = self._get_lon_lat(fname)
+            if loaded:
+                break
+
+        utils.mkch(self.currd)
+
+        
+        year = self.dates[0].year
+        while year <= self.dates[-1].year: 
+            print("Data for {year} is loading!".format(year=str(year)))
+            data = {key: None for key in self.variables}
+            dates = [d for d in self.dates if d.year == year]
+            for date in dates:
+                utils.mkch(" - ".join(self.variables))
+                utils.mkch(str(date.year))
+                utils.mkch(str(date.month))
+                fname = date.strftime("%Y%m%dT%H.nc")
+                loaded_data = self._read_nc_bbox(fname=fname, lon=lon, lat=lat)
+                for var in self.variables:
+                    try:
+                        data[var] = np.append(data[var], loaded_data[var], axis=0)
+                    except:
+                        data[var] = loaded_data[var] 
+                utils.mkch(self.currd) 
+            depths = self._read_depth_bbox()
+            das = self._create_das_bbox(data, depths, lon, lat, dates)
+            utils.mkch(self.currd)
+            for var in self.variables:
+                mds = mikeio.Dataset(das[var])
+                utils.mkch(var)
+                mds.to_dfs(str(year)+".dfs2")
+                utils.mkch(self.currd)
+            year = year + 1
+
+    def _get_lon_lat(self, fname):
+        loaded = False
+        try:
+            ds = nc.Dataset(fname)
+            loaded = True
+        except:
+            return np.nan, np.nan, loaded
+        if loaded:
+            lon = ds["lon"][:].data
+            lat = ds["lat"][:].data
+            return lon, lat, True
+
+
+    def _read_nc_bbox(self, fname, lon, lat):
+        loaded = False
+        try:
+            ds = nc.Dataset(fname)
+            loaded = True
+        except:
+            utils.mkch(self.currd) 
+            utils.write_log(error=fname, log_name="corrupted files.txt")
+            loaded_data = {}
+            for var in self.variables:
+                if var == "surf_el":
+                    nan_array = np.empty([1, len(lat), len(lon)])
+                    nan_array[:] = np.nan
+                    loaded_data[var] = nan_array
+                else:
+                    nan_array = np.empty([1, 40, len(lat), len(lon)])
+                    nan_array[:] = np.nan
+                    loaded_data[var] = nan_array
+            return loaded_data
+        
+        if loaded:
+            loaded_data = {}
+            for var in self.variables:
+                if var == "surf_el":
+                    data = ds[var][:, :, :].data
+                    data[np.abs(data) > 1000.0] = np.nan
+                    loaded_data[var] = data
+                else:
+                    data = ds[var][:, :, :, :].data
+                    data[np.abs(data) > 1000.0] = np.nan
+                    loaded_data[var] = data
+            utils.mkch(self.currd) 
+            return loaded_data
+
+    def _read_depth_bbox(self):
+        depths = None
+        i = 0
+        utils.mkch(self.currd)
+        while depths == None:
+            utils.mkch(" - ".join(self.variables))
+            utils.mkch(str(self.dates[i].year))
+            utils.mkch(str(self.dates[i].month))
+            fname = self.dates[i].strftime("%Y%m%dT%H.nc")
+            try:
+                ds = nc.Dataset(fname)
+                depths = ds["depth"][:].data
+                break
+            except:
+                i = i + 1
+        utils.mkch(self.currd)
+        return depths
+    
+    def _create_das_bbox(self, loaded_data, depths, lon, lat, dates):
+        lon = np.round(lon, 2)
+        lat = np.round(lat, 2)
+        das = {}
+        ItemInfos = self._create_ItemInfo_bbox(depths)
+        geometry = mikeio.Grid2D(x=lon, y=lat, projection="LONG/LAT")
+        for var in self.variables:
+            if var == "surf_el":
+                das[var] = [mikeio.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var], geometry=geometry, item=ItemInfos[var])]
+            else:
+                das[var] = [mikeio.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var][:, i, :, :], geometry=geometry, item=ItemInfos[var][i]) for i in range(len(depths))]
+        return das
+
+    def _create_ItemInfo_bbox(self, depths):
+        itemInfos = {}
+        if "surf_el" in self.variables:
+            itemInfos["surf_el"] = ItemInfo("Water Level", EUMType.Water_Level, EUMUnit.meter)
+        if "water_u" in self.variables:
+            itemInfos["water_u"] = [ItemInfo("Current U at " + str(d) + "m", EUMType.u_velocity_component, EUMUnit.meter_per_sec) for d in depths]
+        if "water_v" in self.variables:
+            itemInfos["water_v"] = [ItemInfo("Current V at " + str(d) + "m", EUMType.v_velocity_component, EUMUnit.meter_per_sec) for d in depths]
+        if "water_temp" in self.variables:
+            itemInfos["water_temp"] = [ItemInfo("Water Temp at " + str(d) + "m", EUMType.Temperature, EUMUnit.degree_Celsius) for d in depths]
+        if "salinity" in self.variables:
+            itemInfos["salinity"] = [ItemInfo("Salinity at " + str(d) + "m", EUMType.Salinity, EUMUnit.PSU) for d in depths]
         return itemInfos
