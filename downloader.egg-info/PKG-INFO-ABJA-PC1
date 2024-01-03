@@ -1,0 +1,20 @@
+Metadata-Version: 2.1
+Name: downloader
+Version: 0.1
+Summary: Download data from different resources
+Home-page: https://github.com/abja-dhi/Data-Downloader
+Author: Seyed Abbas Jazaeri
+Author-email: abja@dhigroup.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: MIT License
+Classifier: Operating System :: OS  Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: mikeio
+Requires-Dist: pandas
+Requires-Dist: netCDF4
+Requires-Dist: requests
+
+# downloader
+This package serves as a tool for downloading data from different resources

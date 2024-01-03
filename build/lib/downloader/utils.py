@@ -35,3 +35,6 @@ class Point:
     def __init__(self, lon, lat):
         self.lon = lon
         self.lat = lat
+
+    def __str__(self) -> str:
+        return str(round(self.lon, 3)) + "_" + str(round(self.lat, 3))
