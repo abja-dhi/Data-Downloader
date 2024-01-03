@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 import mikeio
 import requests
 import time
-from mikecore.DfsFile import eumUnit, eumItem
-#from mikeio.eum import EUMType, ItemInfo
 from mikeio import ItemInfo, EUMType, EUMUnit
 
 class HYCOM:
@@ -333,6 +331,8 @@ class HYCOM:
             return np.nan, np.nan, loaded
         if loaded:
             lon = ds["lon"][:].data
+            if lon[int(len(lon)/2)] > self.east:
+                lon = lon - 360
             lat = ds["lat"][:].data
             return lon, lat, True
 
@@ -439,5 +439,6 @@ class HYCOM:
                     df = mikeio.Dataset.concat([df, tmp])
                 except:
                     df = tmp
+            os.chdir(self.currd)
             df.to_dfs(var+"_"+str(point)+".dfs0")
             del df
