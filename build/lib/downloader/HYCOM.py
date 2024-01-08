@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 import mikeio
 import requests
 import time
-from mikecore.DfsFile import eumUnit, eumItem
-#from mikeio.eum import EUMType, ItemInfo
 from mikeio import ItemInfo, EUMType, EUMUnit
 
 class HYCOM:
