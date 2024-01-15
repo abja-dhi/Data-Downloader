@@ -15,13 +15,14 @@ class ERA5:
         self.start_year = params["start_year"]
         self.end_year = params["end_year"]
         self.variables = params["variables"]
+        self.items = self._items_definition()
         self.north = params["bbox"][0]
         self.west = params["bbox"][1]
         self.east = params["bbox"][2]
         self.south = params["bbox"][3]
         self.currd = params["out_folder"]
         self.currd_nc = os.path.join(self.currd, "nc")
-        self.currd_dfs = os.path.join(self.currd, "dfs")        
+        self.currd_dfs = os.path.join(self.currd, "dfs")
         
         utils.mkch(self.currd)
 
@@ -58,25 +59,45 @@ class ERA5:
         for fname in files:
             self._nc2dfs(fname)
             
-        # Concatenate all years 
-        utils.mkch(self.currd_dfs)
-        files = [f for f in os.listdir(os.getcwd()) if ".dfs2" in f]
-        df = mikeio.read(files[0])
-        for f in files[1:]:
-            df = mikeio.Dataset.concat([df, mikeio.read(f)])
-        utils.mkch(self.currd)
-        df.to_dfs("ERA5.dfs2")
         end = time.time()
         print("All files converted to dfs2 in " + str(round(end-start, 2)) + " seconds!")
 
+    def _create_item_info(self, item):
+        if item == "u10":
+            return ItemInfo("Wind U", EUMType.Wind_Velocity, EUMUnit.meter_per_sec)
+        elif item == "v10":
+            return ItemInfo("Wind V", EUMType.Wind_Velocity, EUMUnit.meter_per_sec)
+        elif item == "t2m":
+            return ItemInfo("2m Air Temperature", EUMType.Temperature, EUMUnit.degree_Kelvin)
+        elif item == "msl":
+            return ItemInfo("Mean Sea Level Pressure", EUMType.Pressure, EUMUnit.pascal)
+        elif item == "siconc":
+            return ItemInfo("Sea Ice Area Fraction", EUMType.Snow_Cover_Percentage)
+        elif item == "sst":
+            return ItemInfo("Sea Surface Temperature", EUMType.Temperature, EUMUnit.degree_Kelvin)
+        elif item == "sp":
+            return ItemInfo("Surface Pressure", EUMType.Pressure, EUMUnit.pascal)
+        elif item == "d2m":
+            return ItemInfo("2m Dewpoint Temperature", EUMType.Temperature, EUMUnit.degree_Kelvin)
+        elif item == "blh":
+            return ItemInfo("Boundary Layer Height", EUMType.Boundary_Layer_Thickness, EUMUnit.meter)
+        elif item == "chnk":
+            return ItemInfo("Charnock", EUMType.Charnock_constant)
+        elif item == "zust":
+            return ItemInfo("Friction Velocity", EUMType.Velocity, EUMUnit.meter_per_sec)
+        elif item == "msdwlwrf":
+            return ItemInfo("Mean Surface Downward Long Wave Radiation Flux", EUMType.Radiation_intensity, EUMUnit.watt_per_meter_pow_2)
+        elif item == "msdwswrf":
+            return ItemInfo("Mean Surface Downward Short Wave Radiation Flux", EUMType.Radiation_intensity, EUMUnit.watt_per_meter_pow_2)
+                            
+
     def _nc2dfs(self, fname):
         start_y = time.time()
-        times, u10, v10, lons, lats = self._parse_nc(fname)
-        times = pd.DatetimeIndex(times)
-        geometry = mikeio.Grid2D(x=lons, y=lats, projection="LONG/LAT")
-        u_da = mikeio.DataArray(data=u10,time=times, geometry=geometry, item=ItemInfo("Wind U", EUMType.Wind_Velocity, EUMUnit.meter_per_sec))
-        v_da = mikeio.DataArray(data=v10,time=times, geometry=geometry, item=ItemInfo("Wind V", EUMType.Wind_Velocity, EUMUnit.meter_per_sec))
-        mds = mikeio.Dataset([u_da, v_da])
+        data = self._parse_nc(fname)
+        times = pd.DatetimeIndex(data["time"])
+        geometry = mikeio.Grid2D(x=data["lon"], y=data["lat"], projection="LONG/LAT")
+        das = [mikeio.DataArray(data=data[key], time=times, geometry=geometry, item=self._create_item_info(self.items[key])) for key in self.items.keys()]
+        mds = mikeio.Dataset(das)
         utils.mkch(self.currd_dfs)
         mds.to_dfs(fname.replace(".nc", ".dfs2"))
         end_y = time.time()
@@ -85,65 +106,50 @@ class ERA5:
     def _parse_nc(self, fname):
         utils.mkch(self.currd_nc)
         ds = nc.Dataset(fname)
-        u10 = np.flip(ds["u10"][:, :, :].data, axis=1)
-        v10 = np.flip(ds["v10"][:, :, :].data, axis=1)
-        ttt = ds["time"][:].data
-        times = []
-        for t in ttt:
-            times.append(datetime(1900, 1, 1, 0, 0, 0) + timedelta(hours=int(t)))
-        lons = ds["longitude"][:].data
-        lats = np.flip(ds["latitude"][:].data)
+        data = {key: np.flip(ds[self.items[key]][:, :, :].data, axis=1) for key in self.items.keys()}
+        for key in self.items.keys():
+            data[key][data[key] == ds[self.items[key]]._FillValue] = np.nan
+        data["time"] = [datetime(1900, 1, 1, 0, 0, 0) + timedelta(hours=int(t)) for t in ds["time"][:].data]
+        data["lon"] = ds["longitude"][:].data
+        data["lat"] = np.flip(ds["latitude"][:].data)
+        return data
 
-        return times, u10, v10, lons, lats
+    def _items_definition(self):
+        items = {"10m_u_component_of_wind": "u10",
+                 "10m_v_component_of_wind": "v10",
+                 "2m_temperature": "t2m",
+                 "mean_sea_level_pressure": "msl",
+                 "sea_ice_cover": "siconc",
+                 "sea_surface_temperature": "sst",
+                 "surface_pressure": "sp",
+                 "2m_dewpoint_temperature": "d2m",
+                 "boundary_layer_height": "blh",
+                 "charnock": "chnk",
+                 "friction_velocity": "zust",
+                 "mean_surface_downward_long_wave_radiation_flux": "msdwlwrf",
+                 "mean_surface_downward_short_wave_radiation_flux": "msdwswrf"
+                 }
+        return {key: items[key] for key in self.variables}
+            
 
-    def extract_point(self, point, name="", interp=False, vars="uv"):
+    def extract_point(self, point, name="", interp=False):
         if name == "":
             name = str(point)
-        utils.mkch(self.currd)
-        df = mikeio.read("ERA5.dfs2")
+        utils.mkch(self.currd_dfs)
+        files = [f for f in os.listdir(os.getcwd()) if ".dfs2" in f]
         if interp:
-            df_extract = df.interp(x=point.lon, y=point.lat, n_nearest=4)
+            df = mikeio.read(files[0]).interp(x=point.lon, y=point.lat, n_nearest=4)
         else:
-            df_extract = df.sel(x=point.lon, y=point.lat)
-        if vars == "uv":
-            df_extract.to_dfs("ERA5_"+ name + ".dfs0")
-        elif vars == "spddir":
-            data, items = self._uv2spddir(df_extract)
-            data.to_dfs0("ERA5_"+ name + ".dfs0", items=items)
-        
-    def _uv2spddir_from_mikeio(self, df):
-        u = df[0].values
-        v = df[1].values
-        spd, dir = uv2spddir(u, v, 'from')
-        times = df.time
-        data = pd.DataFrame({"WS": spd, "WD": dir}, index=times)
-        ws_item = ItemInfo("Wind Speed", EUMType.Wind_speed, EUMUnit.meter_per_sec)
-        wd_item = ItemInfo("Wind Direction", EUMType.Wind_Direction, EUMUnit.degree)
-        items = [ws_item, wd_item]
-        return data, items
-    
-    def _uv2spddir_from_dataframe(self, df):
-        df["Wind Speed"], df["Wind Direction"] = uv2spddir(df["Wind U"], df["Wind V"], 'from')
-        df.drop(["Wind U", "Wind V"], axis=1, inplace=True)
-        ws_item = ItemInfo("Wind Speed", EUMType.Wind_speed, EUMUnit.meter_per_sec)
-        wd_item = ItemInfo("Wind Direction", EUMType.Wind_Direction, EUMUnit.degree)
-        items = [ws_item, wd_item]
-        return df, items
-
-    
-
-    def get_averaging(self, fname="", vars='uv', window=120):
+            df = mikeio.read(files[0]).sel(x=point.lon, y=point.lat)
+        print(files[0].split(".")[0] + " extracted!")
+        for f in files[1:]:
+            if interp:
+                tmp = mikeio.read(f).interp(x=point.lon, y=point.lat, n_nearest=4)
+            else:
+                tmp = mikeio.read(f).sel(x=point.lon, y=point.lat)
+            df = mikeio.Dataset.concat([df, tmp])
+            print(f.split(".")[0] + " extracted!")
         utils.mkch(self.currd)
-        if "ERA5" not in fname:
-            name = "ERA5_" + fname + ".dfs0"
-        df = mikeio.read(name).to_dataframe()
+        df.to_dfs("ERA5_"+ name + ".dfs0")
         
-        if "spddir" in vars:
-            pass
-        df_averaged = df.rolling(window=timedelta(minutes=window), center=True).mean()
-        U_item = ItemInfo("U velocity", EUMType.Wind_Velocity, EUMUnit.meter_per_sec)
-        V_item = ItemInfo("V velocity", EUMType.Wind_Velocity, EUMUnit.meter_per_sec)
-        df_averaged.to_dfs0("ERA5_"+ fname + "_" + str(int(window/60)) + "h_averaged.dfs0", items=[U_item, V_item])
-        
-
-        
+    
