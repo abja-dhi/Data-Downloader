@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import netCDF4 as nc
 from datetime import datetime, timedelta
-import mikeio
+import mikeio_DHI
 import os
 import time
 import cdsapi
-from mikeio import ItemInfo, EUMType, EUMUnit
+from mikeio_DHI import ItemInfo, EUMType, EUMUnit
 
 class ERA5:
     def __init__(self, params):
@@ -141,12 +141,14 @@ class ERA5:
             df = mikeio.read(files[0]).interp(x=point.lon, y=point.lat, n_nearest=4)
         else:
             df = mikeio.read(files[0]).sel(x=point.lon, y=point.lat)
+        print(files[0].split(".")[0] + " extracted!")
         for f in files[1:]:
             if interp:
                 tmp = mikeio.read(f).interp(x=point.lon, y=point.lat, n_nearest=4)
             else:
                 tmp = mikeio.read(f).sel(x=point.lon, y=point.lat)
             df = mikeio.Dataset.concat([df, tmp])
+            print(f.split(".")[0] + " extracted!")
         utils.mkch(self.currd)
         df.to_dfs("ERA5_"+ name + ".dfs0")
         

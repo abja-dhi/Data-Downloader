@@ -32,10 +32,14 @@ class utils():
         return
     
 class Point:
-    def __init__(self, lon, lat):
+    def __init__(self, lon, lat, name:str=""):
         self.lon = lon
         self.lat = lat
+        self.name = name
 
     def __str__(self) -> str:
-        return str(round(self.lon, 3)) + "_" + str(round(self.lat, 3))
+        if not self.name == "":
+            return self.name
+        else:
+            return str(round(self.lon, 3)) + "_" + str(round(self.lat, 3))
     

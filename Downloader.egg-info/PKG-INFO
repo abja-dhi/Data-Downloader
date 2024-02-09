@@ -11,7 +11,7 @@ Classifier: Operating System :: OS  Independent
 Requires-Python: >=3.7
 Description-Content-Type: text/markdown
 Requires-Dist: numpy
-Requires-Dist: mikeio
+Requires-Dist: mikeio_DHI
 Requires-Dist: pandas
 Requires-Dist: netCDF4
 Requires-Dist: requests

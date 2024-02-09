@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import netCDF4 as nc
 from datetime import datetime, timedelta
-import mikeio
+import mikeio_DHI
 import os
 import time
 import cdsapi
-from mikeio import ItemInfo, EUMType, EUMUnit
+from mikeio_DHI import ItemInfo, EUMType, EUMUnit
 
 class ERA5:
     def __init__(self, params):

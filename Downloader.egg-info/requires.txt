@@ -1,5 +1,5 @@
 numpy
-mikeio
+mikeio_DHI
 pandas
 netCDF4
 requests

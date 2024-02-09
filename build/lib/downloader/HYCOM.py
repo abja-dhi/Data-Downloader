@@ -4,13 +4,13 @@ import pandas as pd
 import netCDF4 as nc
 import os
 from datetime import datetime, timedelta
-import mikeio
+import mikeio_DHI
 import requests
 import time
-from mikeio import ItemInfo, EUMType, EUMUnit
+from mikeio_DHI import ItemInfo, EUMType, EUMUnit
 
 class HYCOM:
-    def __init__(self, params) -> None:
+    def __init__(self, start_date, end_date, location, out_folder, reset_log, variables=["surf_el", "water_u", "water_v", "water_temp", "salinity"]) -> None:
         """
         This class downloads data from HYCOM model with 3-hourly intervals
         params is a dictionary with the following keys:
@@ -21,22 +21,22 @@ class HYCOM:
             out_folder (raw string): The main directory to store the data
             reset_log (True / False): Flag for reseting the log file
         """
-        self.start_date = params["start_date"]
-        self.end_date = params["end_date"]
-        self.variables = params["variables"]
+        self.start_date = start_date
+        self.end_date = end_date
+        self.variables = variables
         self.point = None
         self.bbox = None
-        if len(params["location"]) == 2:
-            self.location = Point(lon=params["location"][0], lat=params["location"][1])
-        elif len(params["location"]) == 4:
-            self.location = params["location"]                      # [North, West, East, South]
-            self.north = self.location[0]
-            self.west = self.location[1]
-            self.east = self.location[2]
-            self.south = self.location[3]
-        self.currd = params["out_folder"]
+        if len(location) == 2:
+            self.location = Point(lon=location[0], lat=location[1])
+        elif len(location) == 4:
+            self.location = location
+            self.north = location[0]
+            self.west = location[1]
+            self.east = location[2]
+            self.south = location[3]
+        self.currd = out_folder
         utils.mkch(path=self.currd)
-        self.reset_log = params["reset_log"]
+        self.reset_log = reset_log
         self.dates = [self.start_date]
         while self.dates[-1] < self.end_date:
             self.dates.append(self.dates[-1] + timedelta(hours=3))
@@ -316,7 +316,7 @@ class HYCOM:
             das = self._create_das_bbox(data, depths, lon, lat, dates)
             utils.mkch(self.currd)
             for var in self.variables:
-                mds = mikeio.Dataset(das[var])
+                mds = mikeio_DHI.Dataset(das[var])
                 utils.mkch(var)
                 mds.to_dfs(str(year)+".dfs2")
                 utils.mkch(self.currd)
@@ -394,12 +394,12 @@ class HYCOM:
         lat = np.round(lat, 2)
         das = {}
         ItemInfos = self._create_ItemInfo_bbox(depths)
-        geometry = mikeio.Grid2D(x=lon, y=lat, projection="LONG/LAT")
+        geometry = mikeio_DHI.Grid2D(x=lon, y=lat, projection="LONG/LAT")
         for var in self.variables:
             if var == "surf_el":
-                das[var] = [mikeio.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var], geometry=geometry, item=ItemInfos[var])]
+                das[var] = [mikeio_DHI.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var], geometry=geometry, item=ItemInfos[var])]
             else:
-                das[var] = [mikeio.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var][:, i, :, :], geometry=geometry, item=ItemInfos[var][i]) for i in range(len(depths))]
+                das[var] = [mikeio_DHI.DataArray(time=pd.DatetimeIndex(dates), data=loaded_data[var][:, i, :, :], geometry=geometry, item=ItemInfos[var][i]) for i in range(len(depths))]
         return das
 
     def _create_ItemInfo_bbox(self, depths):
@@ -434,9 +434,9 @@ class HYCOM:
         for var in self.variables:
             os.chdir(var)
             for year in range(self.start_date.year, self.end_date.year+1):
-                tmp = mikeio.read(str(year) + ".dfs2").interp(x=point.lon, y=point.lat)
+                tmp = mikeio_DHI.read(str(year) + ".dfs2").interp(x=point.lon, y=point.lat)
                 try:
-                    df = mikeio.Dataset.concat([df, tmp])
+                    df = mikeio_DHI.Dataset.concat([df, tmp])
                 except:
                     df = tmp
             os.chdir(self.currd)

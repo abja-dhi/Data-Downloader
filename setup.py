@@ -6,7 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "numpy",
-        "mikeio",
+        "mikeio_DHI",
         "pandas",
         "netCDF4",
         "requests"
